@@ -10,6 +10,7 @@
 
 #define		XIAOMI_TOUCH_SENSOR_EVENT_PS_SWITCH   0x01
 #define		XIAOMI_TOUCH_GESTURE_EVENT_SWITCH   0x02
+#define		XIAOMI_TOUCH_FW_READY_EVENT   0x03
 
 enum {
 	/* touch: proximity sensor off */
