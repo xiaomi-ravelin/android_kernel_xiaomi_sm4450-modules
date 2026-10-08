@@ -24,15 +24,80 @@
 #include "sde_dbg.h"
 #include "dsi_parser.h"
 #include <misc/xiaomi_touch_notifier.h>
+#include <video/mipi_display.h>
 
 extern void set_panel_name_gki(char *panel_name);
 
 static bool xiaomi_touch_nb_registered;
+static struct dsi_display *xiaomi_primary_display;
+
+#define XIAOMI_DISPON_FORCE_MS		400
+#define XIAOMI_DISPON_FORCE_PERIOD_MS	8
+#define XIAOMI_DISPON_POLL_MS		20
+#define XIAOMI_DISPON_WINDOW_MS		1000
+#define XIAOMI_POWER_MODE_DISPLAY_ON	BIT(2)
+
+static unsigned long xiaomi_dispon_start;
+
+/*
+ * Loading the touch firmware on TDDI panels makes the panel turn its
+ * display off a few times shortly after it is up. Keep turning the
+ * display on during that time, reading the power mode back takes a
+ * frame which is long enough to see a flicker. Then watch the power
+ * mode for a while in case it happens later.
+ */
+static void xiaomi_display_on_work_fn(struct work_struct *work)
+{
+	static const char get_power_mode[] = {
+		0x06, 0x01, 0x00, 0x01, 0x00, 0x00, 0x01, MIPI_DCS_GET_POWER_MODE,
+	};
+	static const char display_on[] = {
+		0x05, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, MIPI_DCS_SET_DISPLAY_ON,
+	};
+	struct dsi_display *display = xiaomi_primary_display;
+	unsigned int elapsed;
+	u8 mode = 0;
+	int rc;
+
+	if (!display || !display->panel->panel_initialized)
+		return;
+
+	elapsed = jiffies_to_msecs(jiffies - xiaomi_dispon_start);
+	if (elapsed < XIAOMI_DISPON_FORCE_MS) {
+		rc = dsi_display_cmd_transfer(NULL, display, display_on,
+				sizeof(display_on));
+		if (!rc)
+			schedule_delayed_work(to_delayed_work(work),
+				msecs_to_jiffies(XIAOMI_DISPON_FORCE_PERIOD_MS));
+		return;
+	}
+
+	rc = dsi_display_cmd_receive(display, get_power_mode,
+			sizeof(get_power_mode), &mode, 1, NULL);
+	if (rc > 0 && !(mode & XIAOMI_POWER_MODE_DISPLAY_ON)) {
+		DSI_INFO("panel turned display off (0x%02x), turning it on\n",
+				mode);
+		dsi_display_cmd_transfer(NULL, display, display_on,
+				sizeof(display_on));
+	}
+
+	if (rc > 0 && elapsed < XIAOMI_DISPON_WINDOW_MS)
+		schedule_delayed_work(to_delayed_work(work),
+				msecs_to_jiffies(XIAOMI_DISPON_POLL_MS));
+}
+
+static DECLARE_DELAYED_WORK(xiaomi_display_on_work, xiaomi_display_on_work_fn);
 
 static int xiaomi_touch_notifier_callback(struct notifier_block *nb,
 		unsigned long event, void *data)
 {
 	struct xiaomi_touch_notify_data *evdata = data;
+
+	if (event == XIAOMI_TOUCH_FW_READY_EVENT) {
+		xiaomi_dispon_start = jiffies;
+		mod_delayed_work(system_wq, &xiaomi_display_on_work, 0);
+		return 0;
+	}
 
 	if (!evdata)
 		return 0;
@@ -76,6 +141,8 @@ static void xiaomi_display_probe(struct dsi_display *display)
 		is_panel = 0x0b;
 	else if (strstr(name, "m19_42_03_0c"))
 		is_panel = 0x0c;
+
+	xiaomi_primary_display = display;
 
 	if (!xiaomi_touch_nb_registered &&
 	    !xiaomi_touch_notifier_register_client(&xiaomi_touch_nb))
@@ -6169,6 +6236,8 @@ int dsi_display_dev_remove(struct platform_device *pdev)
 	    !strcmp(display->display_type, "primary")) {
 		xiaomi_touch_notifier_unregister_client(&xiaomi_touch_nb);
 		xiaomi_touch_nb_registered = false;
+		cancel_delayed_work_sync(&xiaomi_display_on_work);
+		xiaomi_primary_display = NULL;
 	}
 
 	/* decrement ref count */
