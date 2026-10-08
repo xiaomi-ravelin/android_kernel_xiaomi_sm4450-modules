@@ -1575,6 +1575,8 @@ int cam_get_dt_power_setting_data(struct device_node *of_node,
 			ps[i].seq_type = SENSOR_VANA;
 		} else if (!strcmp(seq_name, "cam_vana1")) {
 			ps[i].seq_type = SENSOR_VANA1;
+		} else if (!strcmp(seq_name, "cam_vana2")) {
+			ps[i].seq_type = SENSOR_CUSTOM_GPIO1;
 		} else if (!strcmp(seq_name, "cam_clk")) {
 			ps[i].seq_type = SENSOR_MCLK;
 		} else {
