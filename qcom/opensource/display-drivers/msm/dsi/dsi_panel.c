@@ -1919,6 +1919,7 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-post-mode-switch-on-command",
 	"qcom,mdss-dsi-qsync-on-commands",
 	"qcom,mdss-dsi-qsync-off-commands",
+	"qcom,proximity_pre-off-command",
 };
 
 const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
@@ -1947,6 +1948,7 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-post-mode-switch-on-command-state",
 	"qcom,mdss-dsi-qsync-on-commands-state",
 	"qcom,mdss-dsi-qsync-off-commands-state",
+	"qcom,proximity_pre-off-command-state",
 };
 
 int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt)
@@ -4949,7 +4951,12 @@ int dsi_panel_disable(struct dsi_panel *panel)
 			panel->power_mode == SDE_MODE_DPMS_LP2))
 			dsi_pwr_panel_regulator_mode_set(&panel->power_info,
 				"ibb", REGULATOR_MODE_STANDBY);
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_OFF);
+		/* Skip sleep-in so the TDDI keeps scanning for proximity */
+		if (touch_priximity_enable &&
+		    panel->cur_mode->priv_info->cmd_sets[DSI_CMD_SET_PROXIMITY_OFF].count)
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_PROXIMITY_OFF);
+		else
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_OFF);
 		if (rc) {
 			/*
 			 * Sending panel off commands may fail when  DSI
