@@ -160,6 +160,7 @@ int xiaomitouch_register_modedata(struct xiaomi_touch_interface *data)
 	touch_data->getModeCurValue = data->getModeCurValue;
 	touch_data->palm_sensor_read = data->palm_sensor_read;
 	touch_data->palm_sensor_write = data->palm_sensor_write;
+	touch_data->double_tap_write = data->double_tap_write;
 	//touch_data->p_sensor_read = data->p_sensor_read;
 	//touch_data->p_sensor_write = data->p_sensor_write;
 	//touch_data->panel_vendor_read = data->panel_vendor_read;
@@ -216,8 +217,60 @@ struct device_attribute *attr, const char *buf, size_t count)
 }
 static DEVICE_ATTR(palm_sensor, (0664),
 		   palm_sensor_show, palm_sensor_store);
+
+int update_double_tap_state(int value)
+{
+	if (!touch_pdata)
+		return -ENODEV;
+
+	touch_pdata->double_tap_value = value;
+	sysfs_notify(&xiaomi_touch_dev.dev->kobj, NULL,
+		     "gesture_double_tap_state");
+	return 0;
+}
+EXPORT_SYMBOL(update_double_tap_state);
+
+static ssize_t gesture_double_tap_enabled_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct xiaomi_touch_pdata *pdata = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", pdata->double_tap_enabled);
+}
+
+static ssize_t gesture_double_tap_enabled_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct xiaomi_touch_pdata *pdata = dev_get_drvdata(dev);
+	int input;
+
+	if (kstrtoint(buf, 10, &input))
+		return -EINVAL;
+
+	pdata->double_tap_enabled = !!input;
+	if (pdata->touch_data->double_tap_write)
+		pdata->touch_data->double_tap_write(pdata->double_tap_enabled);
+
+	return count;
+}
+
+static ssize_t gesture_double_tap_state_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct xiaomi_touch_pdata *pdata = dev_get_drvdata(dev);
+	int value = pdata->double_tap_value;
+
+	pdata->double_tap_value = 0;
+	return snprintf(buf, PAGE_SIZE, "%d\n", value);
+}
+
+static DEVICE_ATTR_RW(gesture_double_tap_enabled);
+static DEVICE_ATTR_RO(gesture_double_tap_state);
+
 static struct attribute *touch_attr_group[] = {
 	&dev_attr_palm_sensor.attr,
+	&dev_attr_gesture_double_tap_enabled.attr,
+	&dev_attr_gesture_double_tap_state.attr,
 	NULL,
 };
 static const struct of_device_id xiaomi_touch_of_match[] = {

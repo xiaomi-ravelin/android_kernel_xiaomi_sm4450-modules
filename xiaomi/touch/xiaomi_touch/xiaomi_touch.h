@@ -61,6 +61,7 @@ struct xiaomi_touch_interface {
 	int (*resetMode)(int Mode);
 	int (*palm_sensor_read)(void);
 	int (*palm_sensor_write)(int on);
+	int (*double_tap_write)(int on);
 	//int long_mode_len;
 	//int long_mode_value[MAX_BUF_SIZE];
 };
@@ -79,6 +80,8 @@ struct xiaomi_touch_pdata{
 	struct xiaomi_touch_interface *touch_data;
 	int palm_value;
 	bool palm_changed;
+	int double_tap_enabled;
+	int double_tap_value;
 	const char *name;
 };
 struct xiaomi_touch *xiaomi_touch_dev_get(int minor);
@@ -90,6 +93,8 @@ extern struct device *get_xiaomi_touch_dev(void);
 extern int update_palm_sensor_value(int value);
 
 extern int xiaomitouch_register_modedata(struct xiaomi_touch_interface *data);
+
+extern int update_double_tap_state(int value);
 
 extern int update_palm_sensor_value(int value);
 
