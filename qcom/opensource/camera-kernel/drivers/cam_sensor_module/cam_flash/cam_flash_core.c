@@ -12,6 +12,16 @@
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
 
+static void cam_flash_gpio_set(struct cam_flash_ctrl *flash_ctrl,
+	struct pinctrl_state *state)
+{
+	if (!flash_ctrl->pinctrl)
+		return;
+
+	if (pinctrl_select_state(flash_ctrl->pinctrl, state))
+		CAM_ERR(CAM_FLASH, "Failed to set flash pinctrl state");
+}
+
 static int cam_flash_prepare(struct cam_flash_ctrl *flash_ctrl,
 	bool regulator_enable)
 {
@@ -573,6 +583,8 @@ int cam_flash_off(struct cam_flash_ctrl *flash_ctrl)
 		cam_res_mgr_led_trigger_event(flash_ctrl->switch_trigger,
 			(enum led_brightness)LED_SWITCH_OFF);
 
+	cam_flash_gpio_set(flash_ctrl, flash_ctrl->gpio_state_torch_off);
+
 	if ((flash_ctrl->i2c_data.streamoff_settings.is_settings_valid) &&
 		(flash_ctrl->i2c_data.streamoff_settings.request_id == 0)) {
 		flash_ctrl->apply_streamoff = true;
@@ -602,6 +614,9 @@ static int cam_flash_low(
 				flash_ctrl->flash_trigger[i],
 				LED_OFF);
 
+	cam_flash_gpio_set(flash_ctrl, flash_ctrl->gpio_state_flash_off);
+	cam_flash_gpio_set(flash_ctrl, flash_ctrl->gpio_state_torch_on);
+
 	rc = cam_flash_ops(flash_ctrl, flash_data,
 		CAMERA_SENSOR_FLASH_OP_FIRELOW);
 	if (rc)
@@ -626,6 +641,9 @@ static int cam_flash_high(
 			cam_res_mgr_led_trigger_event(
 				flash_ctrl->torch_trigger[i],
 				LED_OFF);
+
+	cam_flash_gpio_set(flash_ctrl, flash_ctrl->gpio_state_flash_on);
+	cam_flash_gpio_set(flash_ctrl, flash_ctrl->gpio_state_torch_on);
 
 	rc = cam_flash_ops(flash_ctrl, flash_data,
 		CAMERA_SENSOR_FLASH_OP_FIREHIGH);

@@ -11,6 +11,28 @@
 #include "cam_res_mgr_api.h"
 #include <dt-bindings/msm-camera.h>
 
+/* Xiaomi: flash IC driven by PMIC GPIOs through pinctrl states */
+static void cam_flash_pinctrl_init(struct cam_flash_ctrl *fctrl)
+{
+	struct pinctrl *pinctrl;
+
+	pinctrl = devm_pinctrl_get(&fctrl->pdev->dev);
+	if (IS_ERR_OR_NULL(pinctrl))
+		return;
+
+	fctrl->gpio_state_flash_on = pinctrl_lookup_state(pinctrl, "cam_flash_on");
+	fctrl->gpio_state_flash_off = pinctrl_lookup_state(pinctrl, "cam_flash_off");
+	fctrl->gpio_state_torch_on = pinctrl_lookup_state(pinctrl, "cam_torch_on");
+	fctrl->gpio_state_torch_off = pinctrl_lookup_state(pinctrl, "cam_torch_off");
+	if (IS_ERR(fctrl->gpio_state_flash_on) || IS_ERR(fctrl->gpio_state_flash_off) ||
+	    IS_ERR(fctrl->gpio_state_torch_on) || IS_ERR(fctrl->gpio_state_torch_off))
+		return;
+
+	fctrl->pinctrl = pinctrl;
+	CAM_INFO(CAM_FLASH, "Using pinctrl flash control");
+}
+
+
 void cam_flash_put_source_node_data(struct cam_flash_ctrl *fctrl)
 {
 	uint32_t count = 0, i = 0;
@@ -306,6 +328,8 @@ int cam_flash_get_dt_data(struct cam_flash_ctrl *fctrl,
 	}
 
 	of_node = fctrl->of_node;
+
+	cam_flash_pinctrl_init(fctrl);
 
 	rc = cam_soc_util_get_dt_properties(soc_info);
 	if (rc) {
