@@ -59,6 +59,12 @@ extern void set_tpinfo_gki(char *TPINFO);
 
 extern wait_queue_head_t proximity_switch_queue;
 extern  int32_t nvt_set_proximity_switch(uint8_t proximity_switch);
+extern void nvt_notify_proximity_near(bool near);
+
+static int prox_level_boost = 1;
+module_param(prox_level_boost, int, 0644);
+
+static bool nvt_panel_blanked;
 extern int32_t	g_priximity_enable;
 int  g_priximity_data = -1;
 int32_t g_new_proximity_event_flag;
@@ -173,7 +179,7 @@ const struct mtk_chip_config spi_ctrdata = {
 };
 #endif
 
-static uint8_t bTouchIsAwake = 0;
+uint8_t bTouchIsAwake = 0;
 
 /*******************************************************
 Description:
@@ -1027,6 +1033,9 @@ void nvt_ts_wakeup_gesture_report(uint8_t gesture_id, uint8_t *data)
 		case GESTURE_DOUBLE_CLICK:
 			NVT_LOG("Gesture : Double Click.\n");
 			keycode = gesture_key_array[3];
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE)
+			update_double_tap_state(1);
+#endif
 			break;
 		case GESTURE_WORD_Z:
 			NVT_LOG("Gesture : Word-Z.\n");
@@ -1320,6 +1329,16 @@ static int nvt_palm_sensor_write(int value)
 	}
 	return ret;
 }
+
+#if WAKEUP_GESTURE
+int nvt_gesture_switch(struct input_dev *dev, unsigned int type, unsigned int code, int value);
+
+static int nvt_double_tap_write(int on)
+{
+	return nvt_gesture_switch(ts->input_dev, EV_SYN, SYN_CONFIG,
+				  on ? WAKEUP_ON : WAKEUP_OFF);
+}
+#endif
 
 static struct xiaomi_touch_interface xiaomi_touch_interfaces;
 static void nvt_init_touchmode_data(void)
@@ -1618,9 +1637,17 @@ int32_t nvt_check_proximity(uint8_t input_id, uint8_t *data)
                   	proximity_state = NVT_PROXIMITY_LEVEL0;
 			ret = -1;
 		}
+		/* The sensor HAL only reports near from level 3 */
+		if (proximity_state > NVT_PROXIMITY_LEVEL0 &&
+		    proximity_state < NVT_PROXIMITY_LEVEL3)
+			proximity_state = min(proximity_state + prox_level_boost,
+					      NVT_PROXIMITY_LEVEL3);
 		//NVT_LOG("proximity_state is %d\n",proximity_state);
 		if (proximity_state != g_priximity_data) {
 			NVT_LOG(" proximity state is %d, get proximity event.\n",proximity_state);
+			if ((g_priximity_data >= NVT_PROXIMITY_LEVEL3) !=
+			    (proximity_state >= NVT_PROXIMITY_LEVEL3))
+				nvt_notify_proximity_near(proximity_state >= NVT_PROXIMITY_LEVEL3);
 			g_priximity_data = proximity_state;
 			g_new_proximity_event_flag = 1;
 			wake_up(&proximity_switch_queue);
@@ -2522,6 +2549,9 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	xiaomi_touch_interfaces.resetMode = nvt_reset_mode;
 	xiaomi_touch_interfaces.getModeAll = nvt_get_mode_all;
 	xiaomi_touch_interfaces.palm_sensor_write = nvt_palm_sensor_write;
+#if WAKEUP_GESTURE
+	xiaomi_touch_interfaces.double_tap_write = nvt_double_tap_write;
+#endif
 	nvt_init_touchmode_data();
 	xiaomitouch_register_modedata(&xiaomi_touch_interfaces);
 #endif
@@ -2988,11 +3018,15 @@ static int nvt_xiaomi_panel_notifier_callback(struct notifier_block *self, unsig
 	if (ts_data) {
 		if (event == XIAOMI_PANEL_EARLY_EVENT_BLANK) {
 			if (evdata->blank == XIAOMI_PANEL_BLANK_POWERDOWN) {
-				if(!g_priximity_enable){
+				nvt_panel_blanked = true;
+				if (!g_priximity_enable ||
+				    g_priximity_data < NVT_PROXIMITY_LEVEL3) {
 				NVT_LOG("g_priximity_enable is %d\n",g_priximity_enable);
 				nvt_ts_suspend(&ts->client->dev);
 				//queue_delayed_work(ts->wait_workqueue,&ts->suspend_work,msecs_to_jiffies(0));
 				}
+			} else if (evdata->blank == XIAOMI_PANEL_BLANK_UNBLANK) {
+				nvt_panel_blanked = false;
 			}
 		} else if (event == XIAOMI_PANEL_NORMAL_EVENT_BLANK) {
 			if (evdata->blank == XIAOMI_PANEL_BLANK_UNBLANK) {
@@ -3003,6 +3037,13 @@ static int nvt_xiaomi_panel_notifier_callback(struct notifier_block *self, unsig
 	}
 
 	return 0;
+}
+
+/* Proximity kept touch awake through the blank, finish the suspend now */
+void nvt_proximity_released(void)
+{
+	if (nvt_panel_blanked && bTouchIsAwake)
+		nvt_ts_suspend(&ts->client->dev);
 }
 #elif defined(_MSM_DRM_NOTIFY_H_)
 static int nvt_drm_notifier_callback(struct notifier_block *self, unsigned long event, void *data)

@@ -1293,6 +1293,19 @@ static const struct file_operations proc_lockdown_info_fops = {
 };
 #endif
 
+extern uint8_t bTouchIsAwake;
+extern void nvt_proximity_released(void);
+
+/* Keep the TDDI scanning through a blank only while something is near */
+void nvt_notify_proximity_near(bool near)
+{
+#if IS_ENABLED(CONFIG_XIAOMI_TOUCH_NOTIFIER)
+	touch_proximity_data.ps_enable = near ? XIAOMI_TOUCH_SENSOR_PS_ENABLE :
+						XIAOMI_TOUCH_SENSOR_PS_DISABLE;
+	xiaomi_touch_notifier_call_chain(XIAOMI_TOUCH_SENSOR_EVENT_PS_SWITCH, &touch_proximity_data);
+#endif
+}
+
 int32_t nvt_set_proximity_switch(uint8_t proximity_switch)
 {
 	uint8_t buf[8] = {0};
@@ -1323,10 +1336,7 @@ int32_t nvt_set_proximity_switch(uint8_t proximity_switch)
 		buf[1] = 0x86;
 		NVT_LOG("g_priximity_enable is %d,g_priximity_data = %d\n",g_priximity_enable,g_priximity_data);
 	} else if (proximity_switch == 1) {
-#if IS_ENABLED(CONFIG_XIAOMI_TOUCH_NOTIFIER)
-		touch_proximity_data.ps_enable = XIAOMI_TOUCH_SENSOR_PS_ENABLE;
-		xiaomi_touch_notifier_call_chain(XIAOMI_TOUCH_SENSOR_EVENT_PS_SWITCH, &touch_proximity_data);
-#endif
+		/* The panel is told once something is actually near */
 		// proximity enable
 		//set_lcd_reset_gpio_keep_high(true);
 		g_priximity_enable = 1;
@@ -1337,6 +1347,9 @@ int32_t nvt_set_proximity_switch(uint8_t proximity_switch)
 		ret = -EINVAL;
 		goto out;
 	}
+	/* Don't kick the IC out of gesture mode, resume applies the switch */
+	if (!bTouchIsAwake)
+		goto out;
 	ret = CTP_SPI_WRITE(ts->client, buf, 2);
 	if (ret < 0) {
 		NVT_ERR("Write proximity switch command fail!\n");
@@ -1472,6 +1485,9 @@ static ssize_t nvt_proximity_switch_proc_write(struct file *filp,const char __us
 	nvt_set_proximity_switch(proximity_switch);
 
 	mutex_unlock(&ts->lock);
+
+	if (!proximity_switch)
+		nvt_proximity_released();
 
 	ret = count;
 out:
