@@ -28,3 +28,10 @@ fts_8720-y := \
 	FT8720/focaltech_test/focaltech_test.o \
 	FT8720/focaltech_test/focaltech_test_ini.o \
 	FT8720/focaltech_test/supported_ic/focaltech_test_ft8720.o
+
+obj-m += nvt_36672c_n19.o
+nvt_36672c_n19-y := \
+	NT36672C_SPI_N19/nt36xxx.o \
+	NT36672C_SPI_N19/nt36xxx_fw_update.o \
+	NT36672C_SPI_N19/nt36xxx_ext_proc.o \
+	NT36672C_SPI_N19/nt36xxx_mp_ctrlram.o
