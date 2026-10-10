@@ -172,6 +172,13 @@ struct dsi_panel_reset_config {
 	u32 mode_sel_state;
 };
 
+/* Xiaomi panels with GPIO switched supplies */
+struct dsi_panel_power_config {
+	int vddio_gpio;
+	int dvdd_gpio;
+	int vci_gpio;
+};
+
 enum esd_check_status_mode {
 	ESD_MODE_REG_READ,
 	ESD_MODE_SW_BTA,
@@ -244,6 +251,7 @@ struct dsi_panel {
 	struct dsi_regulator_info power_info;
 	struct dsi_backlight_config bl_config;
 	struct dsi_panel_reset_config reset_config;
+	struct dsi_panel_power_config power_config;
 	struct dsi_pinctrl_info pinctrl;
 	struct drm_panel_hdr_properties hdr_props;
 	struct drm_panel_esd_config esd_config;

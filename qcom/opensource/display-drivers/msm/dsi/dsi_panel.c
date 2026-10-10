@@ -131,6 +131,31 @@ static int dsi_panel_gpio_request(struct dsi_panel *panel)
 {
 	int rc = 0;
 	struct dsi_panel_reset_config *r_config = &panel->reset_config;
+	struct dsi_panel_power_config *p_config = &panel->power_config;
+
+	if (gpio_is_valid(p_config->vddio_gpio)) {
+		rc = gpio_request(p_config->vddio_gpio, "vddio_gpio");
+		if (rc) {
+			DSI_ERR("request for vddio_gpio failed, rc=%d\n", rc);
+			goto error;
+		}
+	}
+
+	if (gpio_is_valid(p_config->dvdd_gpio)) {
+		rc = gpio_request(p_config->dvdd_gpio, "dvdd_gpio");
+		if (rc) {
+			DSI_ERR("request for dvdd_gpio failed, rc=%d\n", rc);
+			goto error;
+		}
+	}
+
+	if (gpio_is_valid(p_config->vci_gpio)) {
+		rc = gpio_request(p_config->vci_gpio, "vci_gpio");
+		if (rc) {
+			DSI_ERR("request for vci_gpio failed, rc=%d\n", rc);
+			goto error;
+		}
+	}
 
 	if (gpio_is_valid(r_config->reset_gpio)) {
 		rc = gpio_request(r_config->reset_gpio, "reset_gpio");
@@ -192,6 +217,16 @@ static int dsi_panel_gpio_release(struct dsi_panel *panel)
 {
 	int rc = 0;
 	struct dsi_panel_reset_config *r_config = &panel->reset_config;
+	struct dsi_panel_power_config *p_config = &panel->power_config;
+
+	if (gpio_is_valid(p_config->vddio_gpio))
+		gpio_free(p_config->vddio_gpio);
+
+	if (gpio_is_valid(p_config->dvdd_gpio))
+		gpio_free(p_config->dvdd_gpio);
+
+	if (gpio_is_valid(p_config->vci_gpio))
+		gpio_free(p_config->vci_gpio);
 
 	if (gpio_is_valid(r_config->reset_gpio))
 		gpio_free(r_config->reset_gpio);
@@ -368,6 +403,48 @@ static int dsi_panel_set_pinctrl_state(struct dsi_panel *panel, bool enable)
 }
 
 
+/* Supply GPIOs, sequence taken from Xiaomi mist-w-oss */
+static void dsi_panel_power_gpios_on(struct dsi_panel *panel)
+{
+	struct dsi_panel_power_config *p_config = &panel->power_config;
+
+	if (!gpio_is_valid(p_config->vddio_gpio) &&
+	    !gpio_is_valid(p_config->dvdd_gpio) &&
+	    !gpio_is_valid(p_config->vci_gpio))
+		return;
+
+	usleep_range(1000, 1100);
+	if (gpio_is_valid(p_config->vddio_gpio))
+		gpio_direction_output(p_config->vddio_gpio, 1);
+	usleep_range(2000, 2100);
+	if (gpio_is_valid(p_config->dvdd_gpio))
+		gpio_direction_output(p_config->dvdd_gpio, 1);
+	usleep_range(2000, 2100);
+	if (gpio_is_valid(p_config->vci_gpio))
+		gpio_direction_output(p_config->vci_gpio, 1);
+	usleep_range(2000, 2100);
+}
+
+static void dsi_panel_power_gpios_off(struct dsi_panel *panel)
+{
+	struct dsi_panel_power_config *p_config = &panel->power_config;
+
+	if (!gpio_is_valid(p_config->vddio_gpio) &&
+	    !gpio_is_valid(p_config->dvdd_gpio) &&
+	    !gpio_is_valid(p_config->vci_gpio))
+		return;
+
+	usleep_range(1000, 1100);
+	if (gpio_is_valid(p_config->dvdd_gpio))
+		gpio_direction_output(p_config->dvdd_gpio, 0);
+	if (gpio_is_valid(p_config->vddio_gpio))
+		gpio_direction_output(p_config->vddio_gpio, 0);
+	usleep_range(5000, 5100);
+	if (gpio_is_valid(p_config->vci_gpio))
+		gpio_direction_output(p_config->vci_gpio, 0);
+	usleep_range(5000, 5100);
+}
+
 static int dsi_panel_power_on(struct dsi_panel *panel)
 {
 	int rc = 0;
@@ -378,6 +455,8 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 				panel->name, rc);
 		goto exit;
 	}
+
+	dsi_panel_power_gpios_on(panel);
 
 	rc = dsi_panel_set_pinctrl_state(panel, true);
 	if (rc) {
@@ -441,6 +520,8 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 			DSI_WARN("set dir for panel test gpio failed rc=%d\n",
 				 rc);
 	}
+
+	dsi_panel_power_gpios_off(panel);
 
 	rc = dsi_panel_set_pinctrl_state(panel, false);
 	if (rc) {
@@ -2434,9 +2515,19 @@ static int dsi_panel_parse_gpios(struct dsi_panel *panel)
 	struct dsi_parser_utils *utils = &panel->utils;
 	char *reset_gpio_name, *mode_set_gpio_name;
 
+	panel->power_config.vddio_gpio = -EINVAL;
+	panel->power_config.dvdd_gpio = -EINVAL;
+	panel->power_config.vci_gpio = -EINVAL;
+
 	if (!strcmp(panel->type, "primary")) {
 		reset_gpio_name = "qcom,platform-reset-gpio";
 		mode_set_gpio_name = "qcom,panel-mode-gpio";
+		panel->power_config.vddio_gpio = utils->get_named_gpio(utils->data,
+			"qcom,platform-vddio-gpio", 0);
+		panel->power_config.dvdd_gpio = utils->get_named_gpio(utils->data,
+			"qcom,platform-dvdd-gpio", 0);
+		panel->power_config.vci_gpio = utils->get_named_gpio(utils->data,
+			"qcom,platform-vci-gpio", 0);
 	} else {
 		reset_gpio_name = "qcom,platform-sec-reset-gpio";
 		mode_set_gpio_name = "qcom,panel-sec-mode-gpio";
