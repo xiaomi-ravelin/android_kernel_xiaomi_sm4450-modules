@@ -132,6 +132,14 @@ static void fts_palm_mode_recovery(struct fts_ts_data *ts_data);
 * Static function prototypes
 *****************************************************************************/
 static int fts_ts_suspend(struct device *dev);
+
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE)
+static int fts_double_tap_write(int on)
+{
+    return fts_gesture_switch(fts_data->input_dev, EV_SYN, SYN_CONFIG,
+                              on ? WAKEUP_ON : WAKEUP_OFF);
+}
+#endif
 static int fts_ts_resume(struct device *dev);
 /* N19 code for HQ-354491 by p-luozhibin1 at 2023.1.22 start */
 int fts_headset_flag = 0;
@@ -2911,6 +2919,7 @@ int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 /* N19 code for HQ-351663 by liaoxianguo at 2023/1/16 start */
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE)
 	memset(&xiaomi_touch_interfaces, 0x00, sizeof(struct xiaomi_touch_interface));
+	xiaomi_touch_interfaces.double_tap_write = fts_double_tap_write;
 	xiaomi_touch_interfaces.palm_sensor_write = fts_palm_sensor_write;
 	xiaomi_touch_interfaces.setModeValue = fts_set_cur_value;
 	xiaomi_touch_interfaces.getModeValue = fts_get_mode_value;

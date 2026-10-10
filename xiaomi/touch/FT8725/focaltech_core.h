@@ -367,6 +367,7 @@ int fts_gesture_exit(struct fts_ts_data *ts_data);
 void fts_gesture_recovery(struct fts_ts_data *ts_data);
 int fts_gesture_readdata(struct fts_ts_data *ts_data, u8 *data);
 int fts_gesture_suspend(struct fts_ts_data *ts_data);
+int fts_gesture_switch(struct input_dev *dev, unsigned int type, unsigned int code, int value);
 int fts_gesture_resume(struct fts_ts_data *ts_data);
 
 /* Apk and functions */

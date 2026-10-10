@@ -33,6 +33,9 @@
 * 1.Included header files
 *****************************************************************************/
 #include "focaltech_core.h"
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE)
+#include "../xiaomi_touch/xiaomi_touch.h"
+#endif
 
 /******************************************************************************
 * Private constant and macro definitions using #define
@@ -278,6 +281,9 @@ static void fts_gesture_report(struct input_dev *input_dev, int gesture_id)
     case GESTURE_DOUBLECLICK:
 /* N19 code for HQ-351921 by liuyupei at 2024/1/5 start */
         gesture = KEY_GESTURE_DOUBLECLICK;
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE)
+        update_double_tap_state(1);
+#endif
 /* N19 code for HQ-351921 by liuyupei at 2024/1/5 end */
         break;
     case GESTURE_O:
