@@ -115,6 +115,13 @@ extern void fts_tp_data_dump_proc_exit(void);
 extern wait_queue_head_t proximity_switch_queue;
 extern int32_t fts_set_proximity_switch(uint8_t proximity_switch);
 extern int32_t g_priximity_enable;
+extern void fts_notify_proximity_near(bool near);
+static bool fts_prox_awake;
+
+bool fts_prox_kept_awake(void)
+{
+    return fts_prox_awake;
+}
 int g_priximity_data = -1;
 int32_t g_new_proximity_event_falg;
 /* N19 code for HQ-354795 by liaoxianguo at 2024/1/24 start */
@@ -1305,6 +1312,8 @@ int fts_check_proximity(void)
     //FTS_INFO("proximity_status is %d\n",proximity_status);
     if(proximity_status != g_priximity_data) {
         FTS_INFO("new falg is %d and proximity state is %d, get proximity event.\n",g_new_proximity_event_falg,proximity_status);
+        if ((g_priximity_data > 0) != (proximity_status > 0))
+            fts_notify_proximity_near(proximity_status > 0);
         g_priximity_data = proximity_status;
         g_new_proximity_event_falg = 1;
         wake_up(&proximity_switch_queue);
@@ -2061,10 +2070,12 @@ static int fts_ts_suspend(struct device *dev)
 #endif
     fts_esdcheck_suspend(ts_data);
 /* N19 code for HQ-357608 by liaoxianguo at 2023/12/29 start */
-    if (g_priximity_enable) {
-        FTS_INFO("g_priximity_enable is %d can't suspend\n",g_priximity_enable);
+    /* Only stay awake through a blank while something is near */
+    if (g_priximity_enable && g_priximity_data > 0) {
+        FTS_INFO("proximity near, can't suspend\n");
         fts_release_all_finger();
         ts_data->suspended = true;
+        fts_prox_awake = true;
         fts_enable_irq_wake(true);
         return 0;
     }
@@ -2098,6 +2109,18 @@ static int fts_ts_suspend(struct device *dev)
     return 0;
 }
 
+/* Proximity kept touch awake through the blank, finish the suspend now */
+void fts_proximity_released(void)
+{
+    if (!fts_prox_awake)
+        return;
+
+    fts_prox_awake = false;
+    fts_enable_irq_wake(false);
+    fts_data->suspended = false;
+    fts_ts_suspend(fts_data->dev);
+}
+
 static int fts_ts_resume(struct device *dev)
 {
     struct fts_ts_data *ts_data = fts_data;
@@ -2110,6 +2133,10 @@ static int fts_ts_resume(struct device *dev)
     }*/
 /* N19 code for HQ-357608 by liaoxianguo at 2023/12/29 end */
     ts_data->suspended = false;
+    if (fts_prox_awake) {
+        fts_prox_awake = false;
+        fts_enable_irq_wake(false);
+    }
     fts_release_all_finger();
 	if (!fts_gestures_status) {
 		fts_irq_enable();
