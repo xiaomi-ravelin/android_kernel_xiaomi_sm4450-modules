@@ -839,6 +839,7 @@ int cam_sensor_match_id(struct cam_sensor_ctrl_t *s_ctrl)
 {
 	int rc = 0;
 	uint32_t chipid = 0;
+	enum camera_sensor_i2c_type addr_type;
 	struct cam_camera_slave_info *slave_info;
 
 	slave_info = &(s_ctrl->sensordata->slave_info);
@@ -852,10 +853,16 @@ int cam_sensor_match_id(struct cam_sensor_ctrl_t *s_ctrl)
 	if (s_ctrl->hw_no_ops)
 		return rc;
 
+	/* Sensors like GC02M1B use 8 bit register addresses */
+	addr_type = s_ctrl->sensor_probe_addr_type;
+	if (addr_type <= CAMERA_SENSOR_I2C_TYPE_INVALID ||
+	    addr_type >= CAMERA_SENSOR_I2C_TYPE_MAX)
+		addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
+
 	rc = camera_io_dev_read(
 		&(s_ctrl->io_master_info),
 		slave_info->sensor_id_reg_addr,
-		&chipid, CAMERA_SENSOR_I2C_TYPE_WORD,
+		&chipid, addr_type,
 		CAMERA_SENSOR_I2C_TYPE_WORD);
 
 	CAM_DBG(CAM_SENSOR, "%s read id: 0x%x expected id 0x%x:",
