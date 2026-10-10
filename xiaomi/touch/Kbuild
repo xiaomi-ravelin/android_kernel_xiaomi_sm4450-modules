@@ -49,3 +49,16 @@ fts_8725-y := \
 	FT8725/focaltech_test/focaltech_test.o \
 	FT8725/focaltech_test/focaltech_test_ini.o \
 	FT8725/focaltech_test/supported_ic/focaltech_test_ft8725.o
+
+obj-m += goodix_core.o
+goodix_core-y := \
+	goodix_berlin/goodix_brl_i2c.o \
+	goodix_berlin/goodix_brl_spi.o \
+	goodix_berlin/goodix_ts_core.o \
+	goodix_berlin/goodix_brl_hw.o \
+	goodix_berlin/goodix_cfg_bin.o \
+	goodix_berlin/goodix_ts_utils.o \
+	goodix_berlin/goodix_brl_fwupdate.o \
+	goodix_berlin/goodix_ts_gesture.o \
+	goodix_berlin/goodix_ts_inspect.o \
+	goodix_berlin/goodix_ts_tools.o
