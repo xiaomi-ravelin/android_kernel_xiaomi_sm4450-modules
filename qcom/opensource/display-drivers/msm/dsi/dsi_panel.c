@@ -385,14 +385,16 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 		goto error_disable_vregs;
 	}
 
-	if (panel->bl_config.type == DSI_BACKLIGHT_I2C) {
+	/* Xiaomi TDDI panels get their bias from an OCP2131 */
+	if (is_panel) {
 		if (is_panel != 0x0a &&
 		    gpio_is_valid(panel->reset_config.reset_gpio)) {
 			gpio_set_value(panel->reset_config.reset_gpio, 0);
 			usleep_range(4000, 4100);
 		}
 		ocp2131_enable();
-		ktd3136_reg_init(is_panel == 0x0a);
+		if (panel->bl_config.type == DSI_BACKLIGHT_I2C)
+			ktd3136_reg_init(is_panel == 0x0a);
 	}
 
 	rc = dsi_panel_reset(panel);
@@ -5010,7 +5012,7 @@ int dsi_panel_post_unprepare(struct dsi_panel *panel)
 
 	mutex_lock(&panel->panel_lock);
 
-	if (panel->bl_config.type == DSI_BACKLIGHT_I2C) {
+	if (is_panel) {
 		/* Keep the TDDI powered for touch wakeup */
 		if (touch_gesture_enable || touch_priximity_enable)
 			goto error;
