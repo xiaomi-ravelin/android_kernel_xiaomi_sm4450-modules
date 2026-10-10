@@ -47,6 +47,41 @@
 #include "msm_common.h"
 #include "msm_dailink.h"
 
+#if IS_ENABLED(CONFIG_SND_SOC_FS181X)
+extern int frsm_add_codec_controls(struct snd_soc_component *codec);
+#endif
+#if IS_ENABLED(CONFIG_SND_SOC_OCA72XXX)
+extern int oca72xxx_add_codec_controls(void *codec);
+#endif
+
+/* Only some devices ship these amps, so avoid a hard module dependency */
+static void msm_add_amp_codec_controls(struct snd_soc_component *component)
+{
+#if IS_ENABLED(CONFIG_SND_SOC_FS181X)
+	int (*frsm_add)(struct snd_soc_component *);
+#endif
+#if IS_ENABLED(CONFIG_SND_SOC_OCA72XXX)
+	int (*oca_add)(void *);
+#endif
+
+#if IS_ENABLED(CONFIG_SND_SOC_FS181X)
+	frsm_add = symbol_get(frsm_add_codec_controls);
+	if (frsm_add) {
+		if (frsm_add(component) < 0)
+			pr_err("%s: fs181x add_codec_controls failed\n", __func__);
+		symbol_put(frsm_add_codec_controls);
+	}
+#endif
+#if IS_ENABLED(CONFIG_SND_SOC_OCA72XXX)
+	oca_add = symbol_get(oca72xxx_add_codec_controls);
+	if (oca_add) {
+		if (oca_add((void *)component) < 0)
+			pr_err("%s: oca72xxx add_codec_controls failed\n", __func__);
+		symbol_put(oca72xxx_add_codec_controls);
+	}
+#endif
+}
+
 #define DRV_NAME "waipio-asoc-snd"
 #define __CHIPSET__ "WAIPIO "
 #define MSM_DAILINK_NAME(name) (__CHIPSET__#name)
@@ -2026,6 +2061,7 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 		}
 	}
 	lpass_cdc_set_port_map(lpass_cdc_component, ARRAY_SIZE(sm_port_map), sm_port_map);
+	msm_add_amp_codec_controls(component);
 
 done:
 	codec_reg_done = true;
