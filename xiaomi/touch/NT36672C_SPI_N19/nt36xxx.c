@@ -3329,6 +3329,10 @@ static int32_t nvt_ts_resume(struct device *dev)
 		NVT_ERR("download firmware failed, ignore check fw state\n");
 	} else {
 		nvt_check_fw_reset_state(RESET_STATE_REK);
+#if IS_ENABLED(CONFIG_XIAOMI_TOUCH_NOTIFIER)
+		/* The panel may turn the display off once the firmware is up */
+		xiaomi_touch_notifier_call_chain(XIAOMI_TOUCH_FW_READY_EVENT, NULL);
+#endif
 	}
 /* N19 code for HQ-351921 by liaoxianguo at 2024/1/2 start */
 	if (g_gesture_flag == true) {
