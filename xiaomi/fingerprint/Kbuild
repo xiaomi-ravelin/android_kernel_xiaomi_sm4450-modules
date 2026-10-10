@@ -6,3 +6,10 @@ gf_spi-y := goodix/gf_spi.o
 
 obj-m += fpc1020_platform_tee.o
 fpc1020_platform_tee-y := fpc/fpc1020_platform_tee.o
+
+obj-m += silead_fp.o
+silead_fp-y := silead/silead_fp.o
+ccflags-y += -DBSP_SIL_PLAT_QCOM
+
+obj-m += xiaomi_fingerprint.o
+xiaomi_fingerprint-y := xiaomi_fp/xiaomi_fingerprint.o
