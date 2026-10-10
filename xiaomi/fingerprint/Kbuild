@@ -13,3 +13,9 @@ ccflags-y += -DBSP_SIL_PLAT_QCOM
 
 obj-m += xiaomi_fingerprint.o
 xiaomi_fingerprint-y := xiaomi_fp/xiaomi_fingerprint.o
+
+obj-m += xiaomi_spi_tee.o
+xiaomi_spi_tee-y := \
+	xiaomi_spi_tee/fp_driver.o \
+	xiaomi_spi_tee/fp_netlink.o \
+	xiaomi_spi_tee/fp_platform.o

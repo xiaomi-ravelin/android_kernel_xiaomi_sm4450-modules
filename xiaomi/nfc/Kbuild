@@ -1,0 +1,14 @@
+ccflags-y += -DCONFIG_TMS_NFC_DEVICE=1
+ccflags-y += -DCONFIG_TMS_GUIDE_DEVICE=1
+ccflags-y += -DTMS_DEBUGER_LOGGER=1
+ccflags-y += -DTMS_DEBUGER_CHECKER=1
+
+obj-m += tms_device_modules.o
+tms_device_modules-y := \
+	tms/tms_common.o \
+	tms/debuger/debuger.o \
+	tms/debuger/logger.o \
+	tms/debuger/checker.o \
+	tms/nfc/nfc_common.o \
+	tms/nfc/nfc_driver.o \
+	tms/guidev/guide_driver.o
