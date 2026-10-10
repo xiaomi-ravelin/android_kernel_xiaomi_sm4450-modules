@@ -106,6 +106,14 @@ int fts_palm_sensor_cmd(int on);
 #endif
 
 static int fts_ts_suspend(struct device *dev);
+
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE)
+static int fts_double_tap_write(int on)
+{
+    return fts_gesture_switch(fts_data->input_dev, EV_SYN, SYN_CONFIG,
+                              on ? WAKEUP_ON : WAKEUP_OFF);
+}
+#endif
 static int fts_ts_resume(struct device *dev);
 extern int fts_proc_node_init(void);
 extern void fts_proc_node_deinit(void);
@@ -2149,6 +2157,7 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE)
     memset(&xiaomi_touch_interfaces, 0x00, sizeof(struct xiaomi_touch_interface));
+    xiaomi_touch_interfaces.double_tap_write = fts_double_tap_write;
     xiaomi_touch_interfaces.palm_sensor_write = fts_palm_sensor_write;
     xiaomi_touch_interfaces.setModeValue = fts_set_cur_value;
     xiaomi_touch_interfaces.getModeValue = fts_get_mode_value;
