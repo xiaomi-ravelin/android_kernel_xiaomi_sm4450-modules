@@ -33,6 +33,25 @@ static void cam_flash_pinctrl_init(struct cam_flash_ctrl *fctrl)
 }
 
 
+/* Xiaomi: flash IC brightness driven by a PMIC LPG channel */
+static void cam_flash_pwm_init(struct cam_flash_ctrl *fctrl)
+{
+	struct pwm_device *pwm;
+
+	if (!of_find_property(fctrl->of_node, "pwms", NULL))
+		return;
+
+	pwm = devm_pwm_get(&fctrl->pdev->dev, NULL);
+	if (IS_ERR(pwm)) {
+		CAM_ERR(CAM_FLASH, "Failed to get flash pwm rc %ld",
+			PTR_ERR(pwm));
+		return;
+	}
+
+	fctrl->pwm = pwm;
+	CAM_INFO(CAM_FLASH, "Using pwm flash control");
+}
+
 void cam_flash_put_source_node_data(struct cam_flash_ctrl *fctrl)
 {
 	uint32_t count = 0, i = 0;
@@ -330,6 +349,7 @@ int cam_flash_get_dt_data(struct cam_flash_ctrl *fctrl,
 	of_node = fctrl->of_node;
 
 	cam_flash_pinctrl_init(fctrl);
+	cam_flash_pwm_init(fctrl);
 
 	rc = cam_soc_util_get_dt_properties(soc_info);
 	if (rc) {

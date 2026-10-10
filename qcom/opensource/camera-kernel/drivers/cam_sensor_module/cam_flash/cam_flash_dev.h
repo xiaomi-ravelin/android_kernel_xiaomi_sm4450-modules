@@ -9,6 +9,7 @@
 #define _CAM_FLASH_DEV_H_
 
 #include <linux/leds.h>
+#include <linux/pwm.h>
 #include <linux/platform_device.h>
 #include <linux/delay.h>
 #include <linux/io.h>
@@ -232,6 +233,7 @@ struct cam_flash_ctrl {
 	struct pinctrl_state                *gpio_state_flash_off;
 	struct pinctrl_state                *gpio_state_torch_on;
 	struct pinctrl_state                *gpio_state_torch_off;
+	struct pwm_device                   *pwm;
 };
 
 int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg);

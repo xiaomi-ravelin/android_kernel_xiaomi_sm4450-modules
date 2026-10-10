@@ -22,6 +22,31 @@ static void cam_flash_gpio_set(struct cam_flash_ctrl *flash_ctrl,
 		CAM_ERR(CAM_FLASH, "Failed to set flash pinctrl state");
 }
 
+#define CAM_FLASH_PWM_PERIOD_NS	50000
+
+/* Duty in percent, 0 turns the flash IC off */
+static void cam_flash_pwm_set(struct cam_flash_ctrl *flash_ctrl, u32 duty)
+{
+	struct pwm_state state;
+
+	if (!flash_ctrl->pwm)
+		return;
+
+	pwm_get_state(flash_ctrl->pwm, &state);
+	state.period = CAM_FLASH_PWM_PERIOD_NS;
+	state.enabled = duty != 0;
+	if (duty) {
+		/* Stock kicks the IC at full duty before settling */
+		state.duty_cycle = CAM_FLASH_PWM_PERIOD_NS;
+		if (pwm_apply_state(flash_ctrl->pwm, &state))
+			CAM_ERR(CAM_FLASH, "Failed to apply flash pwm");
+		usleep_range(5000, 5100);
+	}
+	state.duty_cycle = CAM_FLASH_PWM_PERIOD_NS / 100 * duty;
+	if (pwm_apply_state(flash_ctrl->pwm, &state))
+		CAM_ERR(CAM_FLASH, "Failed to apply flash pwm");
+}
+
 static int cam_flash_prepare(struct cam_flash_ctrl *flash_ctrl,
 	bool regulator_enable)
 {
@@ -584,6 +609,7 @@ int cam_flash_off(struct cam_flash_ctrl *flash_ctrl)
 			(enum led_brightness)LED_SWITCH_OFF);
 
 	cam_flash_gpio_set(flash_ctrl, flash_ctrl->gpio_state_torch_off);
+	cam_flash_pwm_set(flash_ctrl, 0);
 
 	if ((flash_ctrl->i2c_data.streamoff_settings.is_settings_valid) &&
 		(flash_ctrl->i2c_data.streamoff_settings.request_id == 0)) {
@@ -616,6 +642,7 @@ static int cam_flash_low(
 
 	cam_flash_gpio_set(flash_ctrl, flash_ctrl->gpio_state_flash_off);
 	cam_flash_gpio_set(flash_ctrl, flash_ctrl->gpio_state_torch_on);
+	cam_flash_pwm_set(flash_ctrl, 35);
 
 	rc = cam_flash_ops(flash_ctrl, flash_data,
 		CAMERA_SENSOR_FLASH_OP_FIRELOW);
@@ -644,6 +671,7 @@ static int cam_flash_high(
 
 	cam_flash_gpio_set(flash_ctrl, flash_ctrl->gpio_state_flash_on);
 	cam_flash_gpio_set(flash_ctrl, flash_ctrl->gpio_state_torch_on);
+	cam_flash_pwm_set(flash_ctrl, 90);
 
 	rc = cam_flash_ops(flash_ctrl, flash_data,
 		CAMERA_SENSOR_FLASH_OP_FIREHIGH);
