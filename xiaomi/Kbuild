@@ -3,4 +3,5 @@ obj-y += fingerprint/
 obj-y += misc/
 obj-y += nfc/
 obj-y += power/
+obj-y += thermal/
 obj-y += touch/
