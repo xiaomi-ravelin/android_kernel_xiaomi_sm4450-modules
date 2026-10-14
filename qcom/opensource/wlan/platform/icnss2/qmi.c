@@ -33,6 +33,7 @@
 #include "qmi.h"
 #include "debug.h"
 #include "genl.h"
+#include <linux/string.h>
 
 #define WLFW_SERVICE_WCN_INS_ID_V01	3
 #define WLFW_SERVICE_INS_ID_V01		0
@@ -43,6 +44,29 @@
 #define ELF_BDF_FILE_NAME		"bdwlan.elf"
 #define ELF_BDF_FILE_NAME_PREFIX	"bdwlan.e"
 #define BIN_BDF_FILE_NAME		"bdwlan.bin"
+#define BIN_K7XUMC_FILE_NAME		"bdwlanu.bin"
+#define BIN_K7XTMIC_FILE_NAME		"bdwlant.bin"
+#define BIN_K7XSMIC_FILE_NAME		"bdwlans.bin"
+
+#define BIN_BDF_CN_FILE_NAME		"bdwlan_cn.bin"
+#define BIN_BDF_EU_FILE_NAME		"bdwlan_eu.bin"
+#define BIN_BDF_IN_FILE_NAME		"bdwlan_in.bin"
+#define BIN_BDF_JP_FILE_NAME		"bdwlan_jp.bin"
+
+#define BIN_K7XUMC_CN_FILE_NAME	"bdwlanu_cn.bin"
+#define BIN_K7XUMC_EU_FILE_NAME	"bdwlanu_eu.bin"
+#define BIN_K7XUMC_IN_FILE_NAME	"bdwlanu_in.bin"
+#define BIN_K7XUMC_JP_FILE_NAME	"bdwlanu_jp.bin"
+
+#define BIN_K7XTMIC_CN_FILE_NAME	"bdwlant_cn.bin"
+#define BIN_K7XTMIC_EU_FILE_NAME	"bdwlant_eu.bin"
+#define BIN_K7XTMIC_IN_FILE_NAME	"bdwlant_in.bin"
+#define BIN_K7XTMIC_JP_FILE_NAME	"bdwlant_jp.bin"
+
+#define BIN_K7XSMIC_CN_FILE_NAME	"bdwlans_cn.bin"
+#define BIN_K7XSMIC_EU_FILE_NAME	"bdwlans_eu.bin"
+#define BIN_K7XSMIC_IN_FILE_NAME	"bdwlans_in.bin"
+#define BIN_K7XSMIC_JP_FILE_NAME	"bdwlans_jp.bin"
 #define BIN_BDF_FILE_NAME_PREFIX	"bdwlan."
 #define REGDB_FILE_NAME			"regdb.bin"
 
@@ -70,6 +94,16 @@
 #define MAX_NUM_SHADOW_REG_V3		(QMI_WLFW_MAX_NUM_SHADOW_REG_V3_USAGE_V01 - \
 					MAX_SHADOW_REG_RESERVED)
 #define IMSPRIVATE_SERVICE_MAX_MSG_LEN  SZ_8K
+
+#define M19_UMC_CHIP_ID                0x120
+#define M19_K7XUMC_CHIP_ID             0x130
+#define M19_K7XTMIC_CHIP_ID            0x4130
+#define M19_K7XSMIC_CHIP_ID            0x5130
+
+#define HWC_CN  1
+#define HWC_EU  2
+#define HWC_IN  3
+#define HWC_JP  4
 
 #ifdef CONFIG_ICNSS2_DEBUG
 bool ignore_fw_timeout;
@@ -955,6 +989,10 @@ int icnss_qmi_get_dms_mac(struct icnss_priv *priv)
 		goto out;
 	}
 	priv->dms.mac_valid = true;
+	if (resp.mac_address[0] & 0x03) {
+		resp.mac_address[0] &= 0xfc;  // clear last 2 bits
+		icnss_pr_info("Invalid mac addr detected, force the first byte valid!");
+	}
 	memcpy(priv->dms.mac, resp.mac_address, QMI_WLFW_MAC_ADDR_SIZE_V01);
 	icnss_pr_info("Received DMS MAC: [%pM]\n", priv->dms.mac);
 out:
@@ -1093,6 +1131,57 @@ void icnss_dms_deinit(struct icnss_priv *priv)
 	qmi_handle_release(&priv->qmi_dms);
 }
 
+static int get_board_id_from_dtb(char *board_mem) {
+    struct device_node *proj_info_node;
+    const char *read_board_id;
+    int ret;
+
+    proj_info_node = of_find_node_by_name(NULL,"project-info");
+    if (NULL == proj_info_node){
+        icnss_pr_err("%s:device project-info node not exist.",__func__);
+        return -1;
+    }
+    ret = of_property_read_string(proj_info_node,"boardid",&read_board_id);
+    if (ret != 0) {
+        icnss_pr_err("%s:device board id read fail:ret=%d.",__func__,ret);
+        return ret;
+    }
+    strlcpy(board_mem,read_board_id,16);
+    icnss_pr_dbg("%s:device board id read success:%s,%s",__func__,read_board_id,board_mem);
+    return ret;
+}
+
+static int get_board_country(void){
+
+	int ret;
+	char boardid[16]="";
+
+	memset(boardid, 0 , sizeof(boardid));
+
+	ret = get_board_id_from_dtb(boardid);
+	if (ret == 0) {
+		icnss_pr_dbg("device board id get success: %s.",boardid);
+	}
+
+	if (!strcmp(boardid,"S88029JA1") || !strcmp(boardid,"S88029EA1"))
+	{
+		return HWC_JP;
+	}
+	else if (!strcmp(boardid,"S88029AA1") || !strcmp(boardid,"S88029BA1") || !strcmp(boardid,"S88029CA1"))
+	{
+		return HWC_EU;
+	}
+	else if (!strcmp(boardid,"S88019EA1") || !strcmp(boardid,"S88019GA1") || !strcmp(boardid,"S88019EP1") || !strcmp(boardid,"S88019GP1"))
+	{
+		return HWC_IN;
+	}
+	else{
+		return HWC_CN;
+	}
+
+	return HWC_CN;
+}
+
 static int icnss_get_bdf_file_name(struct icnss_priv *priv,
 				   u32 bdf_type, char *filename,
 				   u32 filename_len)
@@ -1100,7 +1189,8 @@ static int icnss_get_bdf_file_name(struct icnss_priv *priv,
 	char filename_tmp[ICNSS_MAX_FILE_NAME];
 	char foundry_specific_filename[ICNSS_MAX_FILE_NAME];
 	int ret = 0;
-
+  	int board_id_ret;
+	icnss_pr_info("m19 newbdf type: %u\n", bdf_type);
 	switch (bdf_type) {
 	case ICNSS_BDF_ELF:
 		if (priv->board_id == 0xFF)
@@ -1117,7 +1207,68 @@ static int icnss_get_bdf_file_name(struct icnss_priv *priv,
 		break;
 	case ICNSS_BDF_BIN:
 		if (priv->board_id == 0xFF)
-			snprintf(filename_tmp, filename_len, BIN_BDF_FILE_NAME);
+                {
+		 	 board_id_ret = get_board_country();
+                   icnss_pr_info("m19_test0,M19 chip id type: 0x%x\n",priv->chip_info.chip_id);
+                   switch (priv->chip_info.chip_id) {
+                   case M19_UMC_CHIP_ID:
+				switch (board_id_ret)
+				{
+					case HWC_CN: snprintf(filename_tmp, filename_len, BIN_BDF_CN_FILE_NAME);break;
+					case HWC_EU: snprintf(filename_tmp, filename_len, BIN_BDF_EU_FILE_NAME);break;
+					case HWC_IN: snprintf(filename_tmp, filename_len, BIN_BDF_IN_FILE_NAME);break;
+					case HWC_JP: snprintf(filename_tmp, filename_len, BIN_BDF_JP_FILE_NAME);break;
+					default:
+						snprintf(filename_tmp, filename_len, BIN_BDF_FILE_NAME);
+						break;
+				}
+                    	icnss_pr_info("m19_test1,board_id: 0x%x,filename_tmp:%s\n",priv->board_id,filename_tmp);
+                     	break;
+                   case M19_K7XUMC_CHIP_ID:
+				switch (board_id_ret)
+				{
+					case HWC_CN: snprintf(filename_tmp, filename_len, BIN_K7XUMC_CN_FILE_NAME);break;
+					case HWC_EU: snprintf(filename_tmp, filename_len, BIN_K7XUMC_EU_FILE_NAME);break;
+					case HWC_IN: snprintf(filename_tmp, filename_len, BIN_K7XUMC_IN_FILE_NAME);break;
+					case HWC_JP: snprintf(filename_tmp, filename_len, BIN_K7XUMC_JP_FILE_NAME);break;
+					default:
+						snprintf(filename_tmp, filename_len, BIN_K7XUMC_FILE_NAME);
+						break;
+				}
+                      	icnss_pr_info("m19_test1,board_id: 0x%x,filename_tmp:%s\n",priv->board_id,filename_tmp);
+                     	break;
+                   case M19_K7XTMIC_CHIP_ID:
+				switch (board_id_ret)
+				{
+					case HWC_CN: snprintf(filename_tmp, filename_len, BIN_K7XTMIC_CN_FILE_NAME);break;
+					case HWC_EU: snprintf(filename_tmp, filename_len, BIN_K7XTMIC_EU_FILE_NAME);break;
+					case HWC_IN: snprintf(filename_tmp, filename_len, BIN_K7XTMIC_IN_FILE_NAME);break;
+					case HWC_JP: snprintf(filename_tmp, filename_len, BIN_K7XTMIC_JP_FILE_NAME);break;
+					default:
+						snprintf(filename_tmp, filename_len, BIN_K7XTMIC_FILE_NAME);
+						break;
+				}
+                     	 icnss_pr_info("m19_test1,board_id: 0x%x,filename_tmp:%s\n",priv->board_id,filename_tmp);
+                     	 break;
+                   case M19_K7XSMIC_CHIP_ID:
+				switch (board_id_ret)
+				{
+					case HWC_CN: snprintf(filename_tmp, filename_len, BIN_K7XSMIC_CN_FILE_NAME);break;
+					case HWC_EU: snprintf(filename_tmp, filename_len, BIN_K7XSMIC_EU_FILE_NAME);break;
+					case HWC_IN: snprintf(filename_tmp, filename_len, BIN_K7XSMIC_IN_FILE_NAME);break;
+					case HWC_JP: snprintf(filename_tmp, filename_len, BIN_K7XSMIC_JP_FILE_NAME);break;
+					default:
+						snprintf(filename_tmp, filename_len, BIN_K7XSMIC_FILE_NAME);
+						break;
+				}
+                     	 icnss_pr_info("m19_test1,board_id: 0x%x,filename_tmp:%s\n",priv->board_id,filename_tmp);
+                     	 break;
+                   default:
+                     	 icnss_pr_err("Invalid chip id type: 0x%x\n", priv->chip_info.chip_id);
+                      	 ret = -EINVAL;
+                     	 break;
+                  }
+                }
 		else if (priv->board_id >= WLAN_BOARD_ID_INDEX)
 			snprintf(filename_tmp, filename_len,
 				 BIN_BDF_FILE_NAME_PREFIX "%03x",
