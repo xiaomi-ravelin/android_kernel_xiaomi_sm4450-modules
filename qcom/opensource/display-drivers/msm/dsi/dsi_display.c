@@ -135,9 +135,10 @@ static void xiaomi_display_probe(struct dsi_display *display)
 	name = display->panel_node->name;
 	set_panel_name_gki((char *)name);
 
-	if (strstr(name, "m19_36_02_0a") || strstr(name, "n19_36_02"))
+	if (strstr(name, "m19_36_02_0a") || strstr(name, "n19_36_02")) {
 		is_panel = 0x0a;
 		is_panel_36_02_0a = 1;
+	}
 	else if (strstr(name, "m19_42_03_0b") || strstr(name, "n19_42_03"))
 		is_panel = 0x0b;
 	else if (strstr(name, "m19_42_03_0c"))

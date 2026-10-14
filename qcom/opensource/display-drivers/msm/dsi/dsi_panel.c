@@ -473,7 +473,7 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 		}
 		ocp2131_enable();
 		if (panel->bl_config.type == DSI_BACKLIGHT_I2C)
-			ktd3136_reg_init(is_panel == 0x0a);
+			ktd3136_reg_init(is_panel != 0x0a);
 	}
 
 	rc = dsi_panel_reset(panel);
@@ -5044,12 +5044,13 @@ int dsi_panel_disable(struct dsi_panel *panel)
 			panel->power_mode == SDE_MODE_DPMS_LP2))
 			dsi_pwr_panel_regulator_mode_set(&panel->power_info,
 				"ibb", REGULATOR_MODE_STANDBY);
-		/* Skip sleep-in so the TDDI keeps scanning for proximity */
-		if (touch_priximity_enable &&
-		    panel->cur_mode->priv_info->cmd_sets[DSI_CMD_SET_PROXIMITY_OFF].count)
-			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_PROXIMITY_OFF);
-		else
+		if (touch_priximity_enable){
+			if (is_panel == 0x0a) {
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_PROXIMITY_OFF);
+			}
+		} else {
 			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_OFF);
+		}
 		if (rc) {
 			/*
 			 * Sending panel off commands may fail when  DSI
