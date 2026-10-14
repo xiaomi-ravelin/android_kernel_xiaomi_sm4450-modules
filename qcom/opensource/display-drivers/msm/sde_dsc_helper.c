@@ -12,6 +12,8 @@
 
 #define SDE_DSC_PPS_SIZE       128
 
+bool is_panel_36_02_0a = 0;
+
 enum sde_dsc_ratio_type {
 	DSC_V11_8BPC_8BPP,
 	DSC_V11_10BPC_8BPP,
@@ -121,6 +123,28 @@ static struct sde_dsc_rc_init_params_lut {
 }  sde_dsc_rc_init_param_lut[] = {
 	/* DSC v1.1 */
 	{11, 11, 6144, 512, 0, 0, 3, 12}, /* DSC_V11_8BPC_8BPP */
+	{15, 15, 6144, 512, 0, 0, 7, 16}, /* DSC_V11_10BPC_8BPP */
+	{15, 15, 5632, 410, 0, 0, 7, 16}, /* DSC_V11_10BPC_10BPP */
+	/* DSC v1.1 SCR and DSC v1.2 RGB 444 */
+	{11, 11, 6144, 512, 0, 0, 3, 12}, /* DSC_V12_444_8BPC_8BPP or DSC_V11_SCR1_8BPC_8BPP */
+	{15, 15, 6144, 512, 0, 0, 7, 16}, /* DSC_V12_444_10BPC_8BPP or DSC_V11_SCR1_10BPC_8BPP */
+	{15, 15, 5632, 410, 0, 0, 7, 16}, /* DSC_V12_444_10BPC_10BPP or DSC_V11_SCR1_10BPC_10BPP */
+	/* DSC v1.2 YUV422 */
+	{11, 11, 5632, 410, 0, 0, 3, 12}, /* DSC_V12_422_8BPC_7BPP */
+	{11, 11, 2048, 341, 0, 0, 3, 12}, /* DSC_V12_422_8BPC_8BPP */
+	{15, 15, 5632, 410, 0, 0, 7, 16}, /* DSC_V12_422_10BPC_7BPP */
+	{15, 15, 2048, 341, 0, 0, 7, 16}, /* DSC_V12_422_10BPC_8BPP */
+	{15, 15, 2048, 273, 0, 0, 7, 16}, /* DSC_V12_422_10BPC_10BPP */
+	/* DSC v1.2 YUV420 */
+	{11, 11, 5632, 410, 0, 0, 3, 12},    /* DSC_V12_422_8BPC_7BPP */
+	{11, 11, 2048, 341, 12, 512, 3, 12}, /* DSC_V12_420_8BPC_6BPP */
+	{15, 15, 2048, 341, 12, 512, 7, 16}, /* DSC_V12_420_10BPC_6BPP */
+	{15, 15, 2048, 256, 12, 512, 7, 16}, /* DSC_V12_420_10BPC_7_5BPP */
+};
+
+struct sde_dsc_rc_init_params_lut sde_dsc_rc_init_param_lut_v1[] = {
+	/* DSC v1.1 */
+	{11, 11, 6144, 170, 0, 0, 3, 12}, /* DSC_V11_8BPC_8BPP */
 	{15, 15, 6144, 512, 0, 0, 7, 16}, /* DSC_V11_10BPC_8BPP */
 	{15, 15, 5632, 410, 0, 0, 7, 16}, /* DSC_V11_10BPC_10BPP */
 	/* DSC v1.1 SCR and DSC v1.2 RGB 444 */
@@ -290,7 +314,10 @@ int sde_dsc_populate_dsc_config(struct drm_dsc_config *dsc, int scr_ver) {
 			sde_dsc_rc_range_bpg[ratio_idx][i];
 	}
 
-	rc_param_lut = &sde_dsc_rc_init_param_lut[ratio_idx];
+	if (is_panel_36_02_0a)
+		rc_param_lut = &sde_dsc_rc_init_param_lut_v1[ratio_idx];
+	else
+		rc_param_lut = &sde_dsc_rc_init_param_lut[ratio_idx];
 	dsc->rc_quant_incr_limit0 = rc_param_lut->rc_quant_incr_limit0;
 	dsc->rc_quant_incr_limit1 = rc_param_lut->rc_quant_incr_limit1;
 	dsc->initial_offset = rc_param_lut->initial_fullness_offset;

@@ -27,7 +27,7 @@
 #include <video/mipi_display.h>
 
 extern void set_panel_name_gki(char *panel_name);
-
+extern bool is_panel_36_02_0a;
 static bool xiaomi_touch_nb_registered;
 static struct dsi_display *xiaomi_primary_display;
 
@@ -137,6 +137,7 @@ static void xiaomi_display_probe(struct dsi_display *display)
 
 	if (strstr(name, "m19_36_02_0a") || strstr(name, "n19_36_02"))
 		is_panel = 0x0a;
+		is_panel_36_02_0a = 1;
 	else if (strstr(name, "m19_42_03_0b") || strstr(name, "n19_42_03"))
 		is_panel = 0x0b;
 	else if (strstr(name, "m19_42_03_0c"))
