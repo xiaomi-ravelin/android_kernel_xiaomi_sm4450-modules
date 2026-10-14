@@ -301,6 +301,8 @@ struct dsi_display {
 	struct dsi_panel_cmd_set cmd_set;
 
 	bool enabled;
+	struct class *display_class;
+	struct device *disp_param_devce;
 };
 
 int dsi_display_dev_probe(struct platform_device *pdev);

@@ -11,7 +11,7 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/pwm.h>
 #include <video/mipi_display.h>
-
+#include "dsi_display.h"
 #include "dsi_panel.h"
 #include <linux/ocp2131_bias.h>
 #include <misc/xiaomi_panel_notifier.h>
@@ -536,7 +536,7 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 
 	return rc;
 }
-static int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
+int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 				enum dsi_cmd_set_type type)
 {
 	int rc = 0, i = 0;
@@ -2003,6 +2003,10 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-qsync-on-commands",
 	"qcom,mdss-dsi-qsync-off-commands",
 	"qcom,proximity_pre-off-command",
+	"qcom,mdss-dsi-cabc-ui-on-command",
+	"qcom,mdss-dsi-cabc-still-on-command",
+	"qcom,mdss-dsi-cabc-movie-on-command",
+	"qcom,mdss-dsi-cabc-off-command",
 };
 
 const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
@@ -2032,6 +2036,10 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-qsync-on-commands-state",
 	"qcom,mdss-dsi-qsync-off-commands-state",
 	"qcom,proximity_pre-off-command-state",
+	"qcom,mdss-dsi-cabc-ui-on-command-state",
+	"qcom,mdss-dsi-cabc-still-on-command-state",
+	"qcom,mdss-dsi-cabc-movie-on-command-state",
+	"qcom,mdss-dsi-cabc-off-command-state",
 };
 
 int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt)
@@ -4806,6 +4814,65 @@ int dsi_panel_send_roi_dcs(struct dsi_panel *panel, int ctrl_idx,
 	dsi_panel_destroy_cmd_packets(set);
 	dsi_panel_dealloc_cmd_packets(set);
 
+	return rc;
+}
+
+extern void hbm_set_mode(bool panel_m19, u32 hbm_mode);
+static int panel_disp_param_send_lock(struct dsi_panel *panel, int param)
+{
+	int rc = 0;
+	uint32_t temp = 0;
+
+	if (!panel) {
+		DSI_ERR("Panel is NULL!\n");
+		return -EINVAL;
+	}
+	mutex_lock(&panel->panel_lock);
+	if (!panel->panel_initialized) {
+		pr_err("[drm] panel not ready!\n");
+		mutex_unlock(&panel->panel_lock);
+		return rc;
+	}
+	pr_info("[drm] param_type=%d\n", param);
+	temp = param & 0x00000F00;
+	switch (temp) {
+	case DISPPARAM_CABCUI_ON:
+		pr_info("[drm] cabc ui on\n");
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_CABC_UI_ON);
+		break;
+	case DISPPARAM_CABCSTILL_ON:
+		pr_info("[drm] cabc still on\n");
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_CABC_STILL_ON);
+		break;
+	case DISPPARAM_CABCMOVIE_ON:
+		pr_info("[drm] cabc movie on\n");
+		dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_CABC_MOVIE_ON);
+		break;
+	case DISPPARAM_CABC_OFF:
+		pr_info("[drm] cabc off\n");
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_CABC_OFF);
+		break;
+	default:
+		pr_info("[drm] unknown cabc mode type:0x%x\n", temp);
+		break;
+	}
+	hbm_set_mode((is_panel != 0x0a),param & 0x000F0000);
+	mutex_unlock(&panel->panel_lock);
+	return rc;
+}
+
+int panel_disp_param_send(struct dsi_display *display, int param_type)
+{
+	int rc = 0;
+	struct dsi_panel *panel = NULL;
+	struct drm_device *drm_dev = NULL;
+	if (!display || !display->panel || !display->drm_dev) {
+		pr_err("invalid display/panel/drm_dev\n");
+		return -EINVAL;
+	}
+	panel = display->panel;
+	drm_dev = display->drm_dev;
+	rc = panel_disp_param_send_lock(panel, param_type);
 	return rc;
 }
 

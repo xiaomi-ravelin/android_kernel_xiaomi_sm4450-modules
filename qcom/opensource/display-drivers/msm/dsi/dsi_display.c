@@ -6100,12 +6100,36 @@ static void dsi_display_firmware_display(const struct firmware *fw,
 	DSI_DEBUG("success\n");
 }
 
+int panel_disp_param_send(struct dsi_display *display, int param);
+static ssize_t disp_param_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int rc = 0;
+	int param = 0;
+	struct dsi_display *display = dev_get_drvdata(dev);
+	if (display == NULL || count == 0) {
+		DSI_ERR("display is NULL or count is error!\n");
+		return -ENODEV;
+	}
+	sscanf(buf, "0x%x", &param);
+	rc = panel_disp_param_send(display, param);
+	if (rc) {
+		pr_err("%s: line %d: DSI disp param send failed, rc=%d\n",
+		       __func__, __LINE__, rc);
+	}
+	return count;
+}
+
+static DEVICE_ATTR_WO(disp_param);
+
 int dsi_display_dev_probe(struct platform_device *pdev)
 {
 	struct dsi_display *display = NULL;
 	struct device_node *node = NULL, *panel_node = NULL, *mdp_node = NULL;
 	int rc = 0, index = DSI_PRIMARY;
 	bool firm_req = false;
+	dev_t devno = 0;
+
 	struct dsi_display_boot_param *boot_disp;
 
 	if (!pdev || !pdev->dev.of_node) {
@@ -6205,7 +6229,31 @@ int dsi_display_dev_probe(struct platform_device *pdev)
 		if (rc)
 			goto end;
 	}
-
+	display->display_class = class_create("display");
+	if (IS_ERR(display->display_class)) {
+		pr_err("%s: line %d: Unable to create display class, errorno = %ld\n", __func__, __LINE__, PTR_ERR(display->display_class));
+		goto end;
+	} else {
+		pr_info("%s: line %d: Create display class success!\n", __func__, __LINE__);
+	}
+	rc = alloc_chrdev_region(&devno, 0, 1, "disp_param");
+	if(rc < 0) {
+		pr_err("Failed to alloc chrdev!\n");
+	}
+	display->disp_param_devce = device_create(display->display_class, NULL, devno, NULL, "disp_param");
+	if (IS_ERR(display->disp_param_devce)) {
+		pr_err("%s: line %d: Unable to create disp_param device, errorno = %ld\n", __func__, __LINE__, PTR_ERR(display->disp_param_devce));
+		goto end;
+	} else {
+		pr_info("%s: line %d: Create disp_param device success!\n", __func__, __LINE__);
+	}
+	dev_set_drvdata(display->disp_param_devce, display);
+	rc = device_create_file(display->disp_param_devce, &dev_attr_disp_param);
+	if (rc < 0) {
+		pr_err("Failed to create attribute disp_param!\n");
+	} else {
+		pr_info("%s: line %d: Device create disp_param file success!\n", __func__, __LINE__);
+	}
 	xiaomi_display_probe(display);
 
 	return 0;
