@@ -473,7 +473,7 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 		}
 		ocp2131_enable();
 		if (panel->bl_config.type == DSI_BACKLIGHT_I2C)
-			ktd3136_reg_init(is_panel != 0x0a);
+			ktd3136_reg_init(is_panel == 0x0a);
 	}
 
 	rc = dsi_panel_reset(panel);
@@ -4856,7 +4856,7 @@ static int panel_disp_param_send_lock(struct dsi_panel *panel, int param)
 		pr_info("[drm] unknown cabc mode type:0x%x\n", temp);
 		break;
 	}
-	hbm_set_mode((is_panel != 0x0a),param & 0x000F0000);
+	hbm_set_mode((is_panel == 0x0a),param & 0x000F0000);
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
